@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hochzeitsfotos</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fdf8f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+    .card { background: white; border-radius: 16px; padding: 2rem; max-width: 480px; width: 100%; text-align: center; box-shadow: 0 2px 20px rgba(0,0,0,0.06); }
+    .hearts { font-size: 20px; letter-spacing: 8px; margin-bottom: 1rem; color: #D4537E; }
+    h1 { font-size: 22px; font-weight: 600; color: #2c2c2c; margin-bottom: 0.25rem; }
+    .subtitle { font-size: 14px; color: #888; margin-bottom: 1.75rem; }
+    .drop-zone { border: 2px dashed #f0c0d0; border-radius: 12px; padding: 2rem 1rem; cursor: pointer; transition: background 0.2s; margin-bottom: 1rem; background: #fff8fa; }
+    .drop-zone:hover { background: #fdf0f4; }
+    .drop-icon { width: 40px; height: 40px; margin: 0 auto 0.75rem; color: #D4537E; opacity: 0.6; }
+    .drop-text { font-size: 14px; color: #666; margin-bottom: 0.25rem; }
+    .drop-sub { font-size: 12px; color: #aaa; }
+    input[type="file"] { display: none; }
+    .preview-list { text-align: left; margin: 0.75rem 0; max-height: 150px; overflow-y: auto; }
+    .preview-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f5f5f5; font-size: 13px; color: #666; }
+    .preview-img { width: 36px; height: 36px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+    .progress-bar { width: 100%; height: 4px; background: #f0e0e8; border-radius: 2px; margin: 0.75rem 0; display: none; overflow: hidden; }
+    .progress-fill { height: 100%; background: #D4537E; border-radius: 2px; transition: width 0.3s; }
+    .btn { width: 100%; padding: 0.75rem; border-radius: 10px; border: none; font-size: 15px; cursor: pointer; margin-top: 0.5rem; transition: background 0.15s; }
+    .btn-primary { background: #D4537E; color: white; font-weight: 500; }
+    .btn-primary:hover { background: #C0476F; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary { background: #f5f5f5; color: #444; }
+    .btn-secondary:hover { background: #ececec; }
+    .note { font-size: 12px; color: #bbb; margin-top: 1rem; }
+    .success { display: none; flex-direction: column; align-items: center; gap: 0.75rem; padding: 1rem 0; }
+    .success-icon { font-size: 48px; }
+    .success-title { font-size: 20px; font-weight: 600; color: #2c2c2c; }
+    .success-text { font-size: 14px; color: #888; }
+    .error-msg { font-size: 13px; color: #e24b4a; margin-top: 0.5rem; display: none; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div id="upload-view">
+    <div class="hearts">♡ ♡ ♡</div>
+    <h1>Eure Hochzeitsfotos</h1>
+    <p class="subtitle">Teilt eure schönsten Momente mit uns</p>
+
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4M8 8l4-4 4 4"/>
+      </svg>
+      <p class="drop-text">Fotos hier ablegen oder antippen zum Auswählen</p>
+      <p class="drop-sub">JPG, PNG, HEIC · bis zu 20 MB pro Foto</p>
+    </div>
+
+    <input type="file" id="file-input" accept="image/*" multiple onchange="handleFiles(this.files)">
+    <div class="preview-list" id="preview-list"></div>
+    <div class="progress-bar" id="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    <p class="error-msg" id="error-msg">Fehler beim Hochladen. Bitte nochmal versuchen.</p>
+    <button class="btn btn-primary" id="upload-btn" disabled onclick="uploadFiles()">Fotos hochladen</button>
+    <p class="note">Deine Fotos werden direkt an das Brautpaar gesendet.</p>
+  </div>
+
+  <div class="success" id="success-view">
+    <div class="success-icon">♡</div>
+    <p class="success-title">Vielen Dank!</p>
+    <p class="success-text">Eure Fotos wurden erfolgreich hochgeladen.</p>
+    <button class="btn btn-secondary" style="margin-top:0.5rem;" onclick="reset()">Weitere Fotos hochladen</button>
+  </div>
+</div>
+
+<script>
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw68CgvYodqjXDLxo67Ags7NNge7kxHa9u-wUbFBKk7hla5bkGvIBKCZb1LPQjZwQK-/exec";
+  let selectedFiles = [];
+
+  const dz = document.getElementById('drop-zone');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.background = '#fdf0f4'; });
+  dz.addEventListener('dragleave', () => { dz.style.background = '#fff8fa'; });
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.style.background = '#fff8fa'; handleFiles(e.dataTransfer.files); });
+
+  function handleFiles(files) {
+    selectedFiles = Array.from(files);
+    const list = document.getElementById('preview-list');
+    list.innerHTML = '';
+    selectedFiles.forEach(f => {
+      const item = document.createElement('div');
+      item.className = 'preview-item';
+      const img = document.createElement('img');
+      img.className = 'preview-img';
+      img.src = URL.createObjectURL(f);
+      const name = document.createElement('span');
+      name.textContent = f.name.length > 35 ? f.name.substring(0,33)+'...' : f.name;
+      item.appendChild(img); item.appendChild(name);
+      list.appendChild(item);
+    });
+    document.getElementById('upload-btn').disabled = selectedFiles.length === 0;
+    document.getElementById('error-msg').style.display = 'none';
+  }
+
+  async function uploadFiles() {
+    const btn = document.getElementById('upload-btn');
+    const bar = document.getElementById('progress-bar');
+    const fill = document.getElementById('progress-fill');
+    const err = document.getElementById('error-msg');
+    btn.disabled = true;
+    btn.textContent = 'Wird hochgeladen...';
+    bar.style.display = 'block';
+    err.style.display = 'none';
+
+    try {
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        const base64 = await toBase64(file);
+        const payload = { fileName: file.name, mimeType: file.type, file: base64 };
+        const res = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error);
+        fill.style.width = Math.round(((i + 1) / selectedFiles.length) * 100) + '%';
+      }
+      setTimeout(showSuccess, 300);
+    } catch (e) {
+      err.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Fotos hochladen';
+      bar.style.display = 'none';
+    }
+  }
+
+  function toBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function showSuccess() {
+    document.getElementById('upload-view').style.display = 'none';
+    document.getElementById('success-view').style.display = 'flex';
+  }
+
+  function reset() {
+    selectedFiles = [];
+    document.getElementById('preview-list').innerHTML = '';
+    document.getElementById('upload-btn').disabled = true;
+    document.getElementById('upload-btn').textContent = 'Fotos hochladen';
+    document.getElementById('progress-bar').style.display = 'none';
+    document.getElementById('progress-fill').style.width = '0%';
+    document.getElementById('file-input').value = '';
+    document.getElementById('success-view').style.display = 'none';
+    document.getElementById('upload-view').style.display = 'block';
+  }
+</script>
+</body>
+</html>
